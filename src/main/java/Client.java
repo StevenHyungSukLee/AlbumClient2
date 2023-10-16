@@ -7,10 +7,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.entity.mime.content.ContentBody;
-import org.apache.http.entity.mime.content.FileBody;
 import java.io.File;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import java.util.concurrent.Executors;
 import org.apache.http.util.EntityUtils;
 
@@ -29,30 +26,29 @@ public class Client {
     String serverUri = args[3];
     int threadPoolSize = numThreadGroups * threadGroupSize; // Calculate the appropriate thread pool size
 
-    HttpClient httpClient = HttpClients.createDefault();
+//    CloseableHttpClient httpClient = HttpClients.createDefault();
     ExecutorService executorService = Executors.newFixedThreadPool(threadPoolSize);
 
     try {
-      System.out.println("Execution started.");
 
       long startTime = System.currentTimeMillis();
       CountDownLatch latch = new CountDownLatch(threadPoolSize);
 
+      // make this for loop is another threat pool
       for (int group = 1; group <= numThreadGroups; group++) {
         System.out.println("Processing thread group: " + group);
 
         for (int i = 0; i < threadGroupSize; i++) {
           executorService.submit(() -> {
             try {
-              performPostRequest(httpClient, serverUri);
-//              performGetRequest(httpClient, serverUri);
+              performPostRequest(serverUri);
+              System.out.println(Thread.currentThread().getName());
+              performGetRequest(serverUri);
             } finally {
               latch.countDown();
             }
           });
-          System.out.println("Thread " + i + "started");
         }
-        System.out.println("Thread group " + group + " processing completed.");
         Thread.sleep(delay * 1000); // Convert delay from seconds to milliseconds
       }
 
@@ -71,7 +67,7 @@ public class Client {
 
       long endTime = System.currentTimeMillis();
       long wallTime = (endTime - startTime) / 1000; // Convert to seconds
-      long totalRequests = (long) numThreadGroups * threadGroupSize * 1000;
+      long totalRequests = (long) numThreadGroups * threadGroupSize * 2000;
       double throughput = (double) totalRequests / wallTime;
 
       System.out.println("Wall Time: " + wallTime + " seconds");
@@ -81,17 +77,20 @@ public class Client {
     }
   }
 
-  private static void performPostRequest(HttpClient httpClient, String serverUri) {
+  private static void performPostRequest( String serverUri) {
+    //create client here and do the same thing at you get request
+    HttpClient httpClient = HttpClients.createDefault();
     HttpPost postRequest = new HttpPost(serverUri + "/albums");
     // Configure the request if needed
     try {
       // Creating the form-data entity
       MultipartEntityBuilder builder = MultipartEntityBuilder.create();
       // Add the image file
-      File imageFile = new File("C:\\Users\\이형석\\OneDrive - Emory University\\Desktop\\assignment1\\HW1\\nmtb.png");
+      File imageFile = new File("nmtb.png");
 
       builder.addBinaryBody("image", imageFile);
-      builder.addTextBody("profile", "{\"artist\":\"John Doe\",\"title\":\"Greatest Hits\",\"year\":\"2023\"}");
+      builder.addTextBody("profile",
+          "{\"artist\":\"John Doe\",\"title\":\"Greatest Hits\",\"year\":\"2023\"}");
 
       HttpEntity multipart = builder.build();
       postRequest.setEntity(multipart);
@@ -99,8 +98,6 @@ public class Client {
       System.out.println("Executing POST request to: " + serverUri);
 
       HttpResponse response = httpClient.execute(postRequest);
-
-      System.out.println("Hit the HTTPRESPONSE CODE");
 
       int statusCode = response.getStatusLine().getStatusCode();
 
@@ -124,8 +121,9 @@ public class Client {
     }
   }
 
-  private static void performGetRequest(HttpClient httpClient, String serverUri) {
-    HttpGet getRequest = new HttpGet(serverUri + "/albums/:id");
+  private static void performGetRequest(String serverUri) {
+    HttpClient httpClient = HttpClients.createDefault();
+    HttpGet getRequest = new HttpGet(serverUri + "/albums/123");
     // Configure the request if needed
     try {
       HttpResponse response = httpClient.execute(getRequest);
@@ -135,11 +133,25 @@ public class Client {
       if (statusCode == 200) {
         // Request was successful, do something
         System.out.println("GET request successful!");
+        // Get the response entity and log the content
+        HttpEntity entity = response.getEntity();
+        if (entity != null) {
+          String result = EntityUtils.toString(entity);
+          System.out.println("Response content: " + result);
+        }
       } else {
         // Request failed, handle the error
         System.out.println("GET request failed with status code: " + statusCode);
-      }    } catch (Exception e) {
+        // Get the response entity and log the content
+        HttpEntity entity = response.getEntity();
+        if (entity != null) {
+          String result = EntityUtils.toString(entity);
+          System.out.println("Response content: " + result);
+        }
+      }
+    } catch (Exception e) {
       e.printStackTrace();
     }
   }
+
 }
