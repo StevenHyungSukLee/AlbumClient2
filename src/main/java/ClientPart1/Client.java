@@ -44,9 +44,10 @@ public class Client {
           for (int i = 0; i < threadGroupSize; i++) {
             executorService2.submit(() -> {
               try {
+                HttpClient httpClient = HttpClients.createDefault();
                 for(int k = 0; k < 1000; k++){
-                  atomicInteger.addAndGet(performPostRequest(serverUri));
-                  atomicInteger.addAndGet(performGetRequest(serverUri));
+                  atomicInteger.addAndGet(performPostRequest(serverUri, httpClient));
+                  atomicInteger.addAndGet(performGetRequest(serverUri, httpClient));
                 }
               } finally {
                 latch.countDown();
@@ -83,11 +84,9 @@ public class Client {
     }
   }
 
-  private static int performPostRequest( String serverUri) {
+  private static int performPostRequest(String serverUri, HttpClient httpClient) {
     int requestCount = 1; // Keep track of the number of requests
-
     //create client here and do the same thing at you get request
-    HttpClient httpClient = HttpClients.createDefault();
     HttpPost postRequest = new HttpPost(serverUri + "/albums");
     // Configure the request if needed
     try {
@@ -118,10 +117,9 @@ public class Client {
 
   }
 
-  private static int performGetRequest(String serverUri) {
+  private static int performGetRequest(String serverUri, HttpClient httpClient) {
     int requestCount = 1; // Keep track of the number of requests
 
-    HttpClient httpClient = HttpClients.createDefault();
     HttpGet getRequest = new HttpGet(serverUri + "/albums/123");
     // Configure the request if needed
     try {
@@ -138,5 +136,4 @@ public class Client {
     return requestCount;
 
   }
-
 }

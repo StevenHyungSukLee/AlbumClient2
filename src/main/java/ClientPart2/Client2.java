@@ -24,6 +24,7 @@ public class Client2 {
   private static final int THREAD_COUNT = 10;
   private static LinkedBlockingQueue<RequestDetail> requestDetails = new LinkedBlockingQueue<>();
   private static final AtomicInteger atomicInteger = new AtomicInteger(0);
+  private static final HttpClient httpClient = HttpClients.createDefault();
 
   public static void main(String[] args) {
     if (args.length != 4) {
@@ -35,6 +36,7 @@ public class Client2 {
     int numThreadGroups = Integer.parseInt(args[1]);
     int delay = Integer.parseInt(args[2]);
     String serverUri = args[3];
+
     int threadPoolSize = numThreadGroups * threadGroupSize; // Calculate the appropriate thread pool size
 
     ExecutorService executorService1 = Executors.newFixedThreadPool(threadPoolSize);
@@ -49,9 +51,10 @@ public class Client2 {
           for (int i = 0; i < threadGroupSize; i++) {
             executorService2.submit(() -> {
               try {
+                HttpClient httpClient = HttpClients.createDefault();
                 for(int k = 0; k < 1000; k++){
-                  atomicInteger.addAndGet(performPostRequest(serverUri));
-                  atomicInteger.addAndGet(performGetRequest(serverUri));
+                  atomicInteger.addAndGet(performPostRequest(serverUri, httpClient));
+                  atomicInteger.addAndGet(performGetRequest(serverUri, httpClient));
                 }
               } finally {
                 latch.countDown();
@@ -68,13 +71,11 @@ public class Client2 {
           }
         });
       }
-      System.out.println("checkpoint");
 
       executorService1.shutdown();
       latch.await();
       while (!executorService1.isTerminated()) {
       }
-      System.out.println("checkpoint2");
 
       long endTime = System.currentTimeMillis();
 
@@ -111,12 +112,11 @@ public class Client2 {
     }
   }
 
-  private static int performPostRequest( String serverUri) {
+  private static int performPostRequest(String serverUri, HttpClient httpClient) {
     int requestCount = 1; // Keep track of the number of requests
 
     long startTime = System.currentTimeMillis(); // Capture start time
 
-    HttpClient httpClient = HttpClients.createDefault();
     HttpPost postRequest = new HttpPost(serverUri + "/albums");
 
     try {
@@ -151,12 +151,11 @@ public class Client2 {
     return requestCount;
   }
 
-  private static int performGetRequest(String serverUri) {
+  private static int performGetRequest(String serverUri, HttpClient httpClient) {
     int requestCount = 1; // Keep track of the number of requests
 
     long startTime = System.currentTimeMillis(); // Capture start time
 
-    HttpClient httpClient = HttpClients.createDefault();
     HttpGet getRequest = new HttpGet(serverUri + "/albums/123");
 
     try {
