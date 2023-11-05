@@ -95,7 +95,6 @@ public class Client2 {
       List<Long> latencies = new ArrayList<>();
       List<Long> getLatencies = new ArrayList<>();
       List<Long> postLatencies = new ArrayList<>();
-//      writeRecordsToCSV(requestDetails, "statistics.csv");
       for (RequestDetail detail : getRequestsDetails) {
         getLatencies.add(detail.getLatency());
       }
@@ -274,7 +273,6 @@ public class Client2 {
   }
 
   private static class RequestDetail {
-
     private final long startTime;
     private final String requestType;
     private final long latency;
