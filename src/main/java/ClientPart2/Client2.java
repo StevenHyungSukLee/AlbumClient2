@@ -132,6 +132,8 @@ public class Client2 {
       System.out.println("POST P99 Response Time: " + getP99PostResponseTime + " milliseconds");
       System.out.println("POST Min Response Time: " + postMinResponseTime + " milliseconds");
       System.out.println("POST Max Response Time: " + postMaxResponseTime + " milliseconds");
+      System.out.println("Successful Requests: " + successfulRequests);
+      System.out.println("Failed Requests: " + failedRequests);
     } catch (Exception e) {
       e.printStackTrace();
     }
