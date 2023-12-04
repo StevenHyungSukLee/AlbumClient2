@@ -3,6 +3,7 @@ package ClientPart2;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,7 +19,9 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.util.EntityUtils;
 
 
@@ -26,12 +29,16 @@ public class Client2 {
 
   private static LinkedBlockingQueue<RequestDetail> getRequestsDetails = new LinkedBlockingQueue<>();
   private static LinkedBlockingQueue<RequestDetail> postRequestsDetails = new LinkedBlockingQueue<>();
+  private static LinkedBlockingQueue<RequestDetail> reviewpostRequestsDetails = new LinkedBlockingQueue<>();
+
 
   private static final AtomicInteger atomicInteger = new AtomicInteger(0);
   private static final AtomicInteger successfulRequests = new AtomicInteger(0);
   private static final AtomicInteger failedRequests = new AtomicInteger(0);
-  private static final AtomicReference<String> lastAlbumId = new AtomicReference<>(
-      ""); // Changed to AtomicReference for String type
+  private static final ThreadLocal<String> lastAlbumId = ThreadLocal.withInitial(() -> "");
+
+//  private static final AtomicReference<String> lastAlbumId = new AtomicReference<>(
+//      ""); // Changed to AtomicReference for String type
 
   public static void main(String[] args) {
     if (args.length != 4) {
@@ -48,6 +55,7 @@ public class Client2 {
 
     long startTime = System.currentTimeMillis();
 
+
     try {
       ExecutorService groupExecutorService = Executors.newFixedThreadPool(numThreadGroups);
       CountDownLatch groupLatch = new CountDownLatch(numThreadGroups);
@@ -55,18 +63,25 @@ public class Client2 {
       for (int group = 0; group < numThreadGroups; group++) {
         final int currentGroup = group;
 
-//        CountDownLatch latch = new CountDownLatch(threadGroupSize);
         groupExecutorService.submit(() -> {
           try {
             ExecutorService threadExecutorService = Executors.newFixedThreadPool(threadGroupSize);
             CountDownLatch threadLatch = new CountDownLatch(threadGroupSize);
+
             for (int i = 0; i < threadGroupSize; i++) {
               threadExecutorService.submit(() -> {
                 System.out.println(Thread.currentThread().getName());
                 HttpClient httpClient = HttpClients.createDefault();
-                for (int k = 0; k < 1000; k++) {
+                for (int k = 0; k < 100; k++) {
                   atomicInteger.addAndGet(performPostRequest(serverUri, httpClient));
-                  atomicInteger.addAndGet(performGetRequest(serverUri, httpClient));
+                  String albumId = lastAlbumId.get();
+                  if (!albumId.isEmpty()) {
+                    atomicInteger.addAndGet(performReviewPostRequest(serverUri, httpClient, "like"));
+                    atomicInteger.addAndGet(performReviewPostRequest(serverUri, httpClient, "like"));
+                    atomicInteger.addAndGet(performReviewPostRequest(serverUri, httpClient, "dislike"));
+                  }
+//                  atomicInteger.addAndGet(performPostRequest(serverUri, httpClient));
+//                  atomicInteger.addAndGet(performGetRequest(serverUri, httpClient));
                 }
                 threadLatch.countDown();
               });
@@ -93,26 +108,32 @@ public class Client2 {
       long endTime = System.currentTimeMillis();
 
       List<Long> latencies = new ArrayList<>();
-      List<Long> getLatencies = new ArrayList<>();
+//      List<Long> getLatencies = new ArrayList<>();
       List<Long> postLatencies = new ArrayList<>();
-      for (RequestDetail detail : getRequestsDetails) {
-        getLatencies.add(detail.getLatency());
-      }
+      List<Long> reviewpostLatencies = new ArrayList<>();
+//      for (RequestDetail detail : getRequestsDetails) {
+//        getLatencies.add(detail.getLatency());
+//      }
       for (RequestDetail detail : postRequestsDetails) {
         postLatencies.add(detail.getLatency());
       }
-      long wallTime = (endTime - startTime) / 1000; // Convert to seconds
-      double throughput = (double) atomicInteger.get() / wallTime;
+      for (RequestDetail detail : reviewpostRequestsDetails) {
+        reviewpostLatencies.add(detail.getLatency());
+      }
+      long wallTime = (endTime - startTime) / 1000; // Co/*nvert to seconds
+      double throughput = (double) successfulRequests.get() / wallTime;
 
       System.out.println("Wall Time: " + wallTime + " seconds");
       System.out.println("Throughput: " + throughput + " requests/second");
 
-      // Calculate statistics for GET requests
-      long getMeanResponseTime = getMean(getLatencies);
-      long getMedianResponseTime = getMedian(getLatencies);
-      long getP99GetResponseTime = getPercentile(getLatencies, 99);
-      long getMinResponseTime = Collections.min(getLatencies);
-      long getMaxResponseTime = Collections.max(getLatencies);
+
+//      // Calculate statistics for GET requests
+//      long getMeanResponseTime = getMean(getLatencies);
+//      long getMedianResponseTime = getMedian(getLatencies);
+//      long getP99GetResponseTime = getPercentile(getLatencies, 99);
+//
+//      long getMinResponseTime = Collections.min(getLatencies);
+//      long getMaxResponseTime = Collections.max(getLatencies);
 
       // Calculate statistics for POST requests
       long postMeanResponseTime = getMean(postLatencies);
@@ -121,17 +142,31 @@ public class Client2 {
       long postMinResponseTime = Collections.min(postLatencies);
       long postMaxResponseTime = Collections.max(postLatencies);
 
-      System.out.println("GET Mean Response Time: " + getMeanResponseTime + " milliseconds");
-      System.out.println("GET Median Response Time: " + getMedianResponseTime + " milliseconds");
-      System.out.println("GET P99 Response Time: " + getP99GetResponseTime + " milliseconds");
-      System.out.println("GET Min Response Time: " + getMinResponseTime + " milliseconds");
-      System.out.println("GET Max Response Time: " + getMaxResponseTime + " milliseconds");
+//      System.out.println("GET Mean Response Time: " + getMeanResponseTime + " milliseconds");
+//      System.out.println("GET Median Response Time: " + getMedianResponseTime + " milliseconds");
+//      System.out.println("GET P99 Response Time: " + getP99GetResponseTime + " milliseconds");
+//      System.out.println("GET Min Response Time: " + getMinResponseTime + " milliseconds");
+//      System.out.println("GET Max Response Time: " + getMaxResponseTime + " milliseconds");
 
       System.out.println("POST Mean Response Time: " + postMeanResponseTime + " milliseconds");
       System.out.println("POST Median Response Time: " + postMedianResponseTime + " milliseconds");
       System.out.println("POST P99 Response Time: " + getP99PostResponseTime + " milliseconds");
       System.out.println("POST Min Response Time: " + postMinResponseTime + " milliseconds");
       System.out.println("POST Max Response Time: " + postMaxResponseTime + " milliseconds");
+
+      long reviewPostMeanResponseTime = getMean(reviewpostLatencies);
+      long reviewPostMedianResponseTime = getMedian(reviewpostLatencies);
+      long getP99ReviewPostResponseTime = getPercentile(reviewpostLatencies, 99);
+      long reviewPostMinResponseTime = Collections.min(reviewpostLatencies);
+      long reviewPostMaxResponseTime = Collections.max(reviewpostLatencies);
+
+      System.out.println("REVIEW_POST Mean Response Time: " + reviewPostMeanResponseTime + " milliseconds");
+      System.out.println("REVIEW_POST Median Response Time: " + reviewPostMedianResponseTime + " milliseconds");
+      System.out.println("REVIEW_POST P99 Response Time: " + getP99ReviewPostResponseTime + " milliseconds");
+      System.out.println("REVIEW_POST Min Response Time: " + reviewPostMinResponseTime + " milliseconds");
+      System.out.println("REVIEW_POST Max Response Time: " + reviewPostMaxResponseTime + " milliseconds");
+
+
       System.out.println("Successful Requests: " + successfulRequests);
       System.out.println("Failed Requests: " + failedRequests);
     } catch (Exception e) {
@@ -140,6 +175,7 @@ public class Client2 {
   }
 
   private static int performPostRequest(String serverUri, HttpClient httpClient) {
+
     int requestCount = 1; // Keep track of the number of requests
     int retryAttempts = 0; // Counter for retry attempts
 
@@ -158,14 +194,14 @@ public class Client2 {
         builder.addTextBody("title", "Greatest Hits");
         builder.addTextBody("year", "2023");
 
+
         HttpEntity multipart = builder.build();
         postRequest.setEntity(multipart);
 
         HttpResponse response = httpClient.execute(postRequest);
         int statusCode = response.getStatusLine().getStatusCode();
 
-        if (statusCode == 200 || statusCode == 201) {
-          // If successful, exit the loop
+        if (statusCode == 200 || statusCode == 201 || statusCode == 202) {
           HttpEntity entity = response.getEntity();
           String responseBody = EntityUtils.toString(entity);
           JsonObject responseJson = JsonParser.parseString(responseBody).getAsJsonObject();
@@ -173,16 +209,13 @@ public class Client2 {
             lastAlbumId.set(responseJson.get("albumId").getAsString()); // Store the new album ID
           }
           EntityUtils.consume(entity);
-          EntityUtils.consume(response.getEntity());
 
           successfulRequests.incrementAndGet(); // Increment successful request counter
           long endTime = System.currentTimeMillis(); // Capture end time
           long latency = endTime - startTime; // Calculate latency
           postRequestsDetails.add(new RequestDetail(startTime, "POST", latency, statusCode));
-
           break;
         } else if (statusCode >= 400 && statusCode <= 599) {
-          // Increment retryAttempts if 4XX or 5XX response code
           if (retryAttempts == 4) {
             failedRequests.incrementAndGet();
           }
@@ -194,12 +227,49 @@ public class Client2 {
         if (retryAttempts == 4) {
           failedRequests.incrementAndGet();
         }
-        e.printStackTrace();
         retryAttempts++;
 
       }
     }
     return requestCount;
+  }
+
+  private static int performReviewPostRequest(String serverUri, HttpClient httpClient, String reviewType) {
+    String albumId = lastAlbumId.get();
+    HttpPost postRequest = new HttpPost(serverUri + "/review" + "/" + reviewType + "/" + albumId);
+
+    int requestCount = 1; // Initialize request count
+    int retryAttempts = 0;
+
+    long startTime = System.currentTimeMillis(); // Capture start time
+
+    while (retryAttempts < 5) {
+      try {
+        HttpResponse response = httpClient.execute(postRequest);
+        EntityUtils.consume(response.getEntity()); // Consume the response entity
+        int statusCode = response.getStatusLine().getStatusCode();
+
+        if (statusCode == 200 || statusCode == 201 || statusCode == 202) {
+          successfulRequests.incrementAndGet();
+          long endTime = System.currentTimeMillis(); // Capture end time
+          long latency = endTime - startTime; // Calculate latency
+          reviewpostRequestsDetails.add(new RequestDetail(startTime, "REVIEW_POST", latency, statusCode));
+          break; // Exit the loop on successful request
+        } else if (statusCode >= 400 && statusCode <= 599) {
+          failedRequests.incrementAndGet();
+          retryAttempts++;
+          requestCount++; // Increment request count on failure
+        }
+      } catch (IOException e) {
+        e.printStackTrace();
+        if (retryAttempts == 4) {
+          failedRequests.incrementAndGet();
+        }
+        retryAttempts++;
+        requestCount++; // Increment request count on exception
+      }
+    }
+    return requestCount; // Return the total number of requests attempted
   }
 
   private static int performGetRequest(String serverUri, HttpClient httpClient) {
